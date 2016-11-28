@@ -2,12 +2,16 @@
 #include <QueueArray.h>
 
 #define STEPS 32
+#define ONE_REVOLUTION 2048
+
 #define SPEED_FAST 640
 #define SPEED_MEDIUM 320
 #define SPEED_SLOW 160
-#define ONE_REVOLUTION 2048
+
 #define LEFT 1
 #define RIGHT 2
+#define GRID_SIZE_X 400
+#define GRID_SIZE_Y 400
 
 Stepper rightStepper(STEPS, 7, 5, 6, 4);
 Stepper leftStepper(STEPS, 11, 9, 10, 8);
@@ -20,7 +24,7 @@ int rightStepsRemaining = 0;
 
 int currentSpeed = SPEED_FAST;
 
-boolean isReadyForCommand = true;
+boolean isReadyForNewPoint = true;
 
 QueueArray <int> xCoordinates;
 QueueArray <int> yCoordinates;
@@ -31,15 +35,15 @@ void setup() {
   xCoordinates.setPrinter(Serial);
   yCoordinates.setPrinter(Serial);
 
-  // setup pins from 4-11
+  // setup pins from 4 to 11
   for (int i = 4; i <= 11; i++) {
     pinMode(i, OUTPUT);
   }
 
-  // adding coordinates to the arrays
-  xCoordinates.push(90); yCoordinates.push(180);
-  xCoordinates.push(180); yCoordinates.push(360);
-  xCoordinates.push(360); yCoordinates.push(180);
+  // add points
+  addPoint(80, 190);
+  addPoint(200, 123);
+  addPoint(360, 200);
 
   // setting the speed for the steppers
   setStepperSpeed(currentSpeed);
@@ -47,28 +51,22 @@ void setup() {
 }
 
 void loop() {
-  //making sure that the number of x- and y-coordinates are the same
-  if (xCoordinates.count() != yCoordinates.count()) {
-    Serial.println("Uneven number of coordinates – please take care of it!");
-    delay(5000);
-    return;
-  }
-
-  //
-  if (isReadyForCommand && !xCoordinates.isEmpty() && !yCoordinates.isEmpty()) {
+  // go to new point once last point has been reached
+  if (isReadyForNewPoint && !xCoordinates.isEmpty() && !yCoordinates.isEmpty()) {
     int x = xCoordinates.dequeue();
     int y = yCoordinates.dequeue();
     turn(LEFT, x);
     turn(RIGHT, y);
   }
 
-  // needs to be call in every loop – can NOT be omitted
-  updateStepperPositions();
+  // needs to be called in every loop – can NOT be omitted!
+  updateSteppers();
 }
 
-/* HELPER METHODS */
-void updateStepperPositions() {
-  isReadyForCommand = (leftStepsRemaining <= 0 && rightStepsRemaining <= 0);
+/********** HELPER METHODS **********/
+/* Stepper functions */
+void updateSteppers() {
+  isReadyForNewPoint = (leftStepsRemaining <= 0 && rightStepsRemaining <= 0);
 
   if (leftStepsRemaining > 0) {
     leftStepper.step(leftStepperDirection ? 1 : -1);
@@ -79,6 +77,12 @@ void updateStepperPositions() {
     rightStepper.step(rightStepperDirection ? 1 : -1);
     rightStepsRemaining = rightStepsRemaining - 1;
   }
+}
+
+void setStepperSpeed(int newSpeed) {
+  leftStepper.setSpeed(newSpeed);
+  rightStepper.setSpeed(newSpeed);
+  Serial.println("Speed set to: " + String(newSpeed));
 }
 
 void turn(int stepper, double degrees) {
@@ -97,8 +101,19 @@ void turn(int stepper, double degrees) {
   }
 }
 
-void setStepperSpeed(int newSpeed) {
-  leftStepper.setSpeed(newSpeed);
-  rightStepper.setSpeed(newSpeed);
-  Serial.println("Speed set to: " + newSpeed);
+/* Point functions */
+void goToPoint(int x, int y) {
+  /*TODO: Implement the 'go to point function'.
+  Remember to keep track of the current distance for each thread 
+  */
+}
+
+void addPoint(int x, int y) {
+  if (x > GRID_SIZE_X || y > GRID_SIZE_Y) {
+    Serial.print("Point (" + String(x) + "," + String(y) + ") exceeds grid of ");
+    Serial.println(String(GRID_SIZE_X) + "x" + String(GRID_SIZE_Y));
+  } else {
+    xCoordinates.push(x);
+    yCoordinates.push(y);
+  }
 }
