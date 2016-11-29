@@ -78,17 +78,42 @@ void loop() {
 
 /********** HELPER METHODS **********/
 /* Stepper functions */
+double leftTempValue; //temporary value for keeping track of steps taken (left)
+double rightTempValue; //temporary value for keeping track of steps taken (right)
+
 void updateSteppers() {
   isReadyForNewPoint = (leftStepsRemaining <= 0 && rightStepsRemaining <= 0);
 
+  // left stepper
   if (leftStepsRemaining > 0) {
-    leftStepper.step(leftStepperDirection ? 1 : -1);
-    leftStepsRemaining = leftStepsRemaining - 1;
+    if (leftTempValue >= 1) {
+      // throw away the decimal by casting
+      int wholeTempValue = (int) leftTempValue;
+      // step the number of steps in either direction
+      leftStepper.step(leftStepperDirection ? wholeTempValue : -(wholeTempValue));
+      // deduct and update the steps taken
+      leftStepsRemaining = leftStepsRemaining - wholeTempValue;
+      leftTempValue = leftTempValue - wholeTempValue;
+      Serial.println("Left took " + String(wholeTempValue) + " steps. Remaining steps: " + String(leftStepsRemaining));
+    } else {
+      leftTempValue = leftTempValue + leftStepSize;
+    }
   }
 
+  // right stepper
   if (rightStepsRemaining > 0) {
-    rightStepper.step(rightStepperDirection ? 1 : -1);
-    rightStepsRemaining = rightStepsRemaining - 1;
+    if (rightTempValue >= 1) {
+      // throw away the decimal by casting
+      int wholeTempValue = (int) rightTempValue;
+      // step the number of steps in either direction
+      rightStepper.step(rightStepperDirection ? wholeTempValue : -(wholeTempValue));
+      // deduct and update the steps taken
+      rightStepsRemaining = rightStepsRemaining - wholeTempValue;
+      rightTempValue = rightTempValue - wholeTempValue;
+      Serial.println("Right took " + String(wholeTempValue) + " steps. Remaining steps: " + String(rightStepsRemaining));
+    } else {
+      rightTempValue = rightTempValue + rightStepSize;
+    }
   }
 }
 
@@ -134,6 +159,9 @@ void goToPoint(int x, int y) {
   // update steps remaining
   leftStepsRemaining = (int) abs(oneUnit * differenceLeft);
   rightStepsRemaining = (int) abs(oneUnit * differenceRight);
+
+  leftStepSize = (double) leftStepsRemaining / (double) ONE_REVOLUTION;
+  rightStepSize = (double) rightStepsRemaining / (double) ONE_REVOLUTION;
 
   // update distances from steppers to the new position
   leftCurrentDistance = newLeftDistance;
