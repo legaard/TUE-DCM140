@@ -1,17 +1,21 @@
 #include <Stepper.h>
 #include <QueueArray.h>
 
+/********** Variables and constants **********/
 #define STEPS 32
 #define ONE_REVOLUTION 2048
 
-#define SPEED_FAST 640
-#define SPEED_MEDIUM 320
-#define SPEED_SLOW 160
+#define SPEED_FAST 1100
+#define SPEED_MEDIUM 500
+#define SPEED_SLOW 250
 
 #define LEFT 1
 #define RIGHT 2
-#define GRID_SIZE_X 400
-#define GRID_SIZE_Y 400
+
+#define GRID_SIZE_X 10
+#define GRID_SIZE_Y 10
+
+#define REEL_CIRCUMFERENCE 4;
 
 Stepper rightStepper(STEPS, 7, 5, 6, 4);
 Stepper leftStepper(STEPS, 11, 9, 10, 8);
@@ -19,11 +23,18 @@ Stepper leftStepper(STEPS, 11, 9, 10, 8);
 boolean leftStepperDirection = true; // true = clockwise, false = counter clockwise
 boolean rightStepperDirection = true; // true = clockwise, false = counter clockwise
 
+// values related to the steppers
+const int rightStepperPosition[] = {GRID_SIZE_X + 1, -1};
+const int leftStepperPosition[] = {-1, -1};
+double leftCurrentDistance = 5;
+double rightCurrentDistance = 5;
 int leftStepsRemaining = 0;
 int rightStepsRemaining = 0;
+double leftStepSize;
+double rightStepSize;
 
 int currentSpeed = SPEED_FAST;
-
+int delayBetweenPoints = 1000;
 boolean isReadyForNewPoint = true;
 
 QueueArray <int> xCoordinates;
@@ -41,9 +52,11 @@ void setup() {
   }
 
   // add points
-  addPoint(80, 190);
-  addPoint(200, 123);
-  addPoint(360, 200);
+  addPoint(5, 5);
+  addPoint(2, 1);
+  addPoint(10, 0);
+  addPoint(10, 10);
+  addPoint(5, 6);
 
   // setting the speed for the steppers
   setStepperSpeed(currentSpeed);
@@ -55,8 +68,8 @@ void loop() {
   if (isReadyForNewPoint && !xCoordinates.isEmpty() && !yCoordinates.isEmpty()) {
     int x = xCoordinates.dequeue();
     int y = yCoordinates.dequeue();
-    turn(LEFT, x);
-    turn(RIGHT, y);
+    delay(delayBetweenPoints);
+    goToPoint(x, y);
   }
 
   // needs to be called in every loop – can NOT be omitted!
@@ -103,17 +116,46 @@ void turn(int stepper, double degrees) {
 
 /* Point functions */
 void goToPoint(int x, int y) {
-  /*TODO: Implement the 'go to point function'.
-  Remember to keep track of the current distance for each thread 
-  */
+  // calculate the distance from the steppers' position to the new point
+  double newLeftDistance = sqrt(sq(x - leftStepperPosition[0]) + sq(y - leftStepperPosition[1]));
+  double newRightDistance = sqrt(sq(x - rightStepperPosition[0]) + sq(y - rightStepperPosition[1]));
+
+  // calculate the difference between current distance of the steppers and new distances
+  double differenceLeft = newLeftDistance - leftCurrentDistance;
+  double differenceRight = newRightDistance - rightCurrentDistance;
+
+  // change direction of the steppers based on the difference (< 0 --> reverse)
+  leftStepperDirection = differenceLeft > 0;
+  rightStepperDirection = differenceRight > 0;
+
+  // calculate the number of steps to one 'unit' in the coordinate system
+  double oneUnit = ONE_REVOLUTION / REEL_CIRCUMFERENCE;
+
+  // update steps remaining
+  leftStepsRemaining = (int) abs(oneUnit * differenceLeft);
+  rightStepsRemaining = (int) abs(oneUnit * differenceRight);
+
+  // update distances from steppers to the new position
+  leftCurrentDistance = newLeftDistance;
+  rightCurrentDistance = newRightDistance;
+
+  Serial.println("Added point (" + String(x) + ", " + String(y) + ") to the list");
 }
 
 void addPoint(int x, int y) {
   if (x > GRID_SIZE_X || y > GRID_SIZE_Y) {
-    Serial.print("Point (" + String(x) + "," + String(y) + ") exceeds grid of ");
-    Serial.println(String(GRID_SIZE_X) + "x" + String(GRID_SIZE_Y));
-  } else {
-    xCoordinates.push(x);
-    yCoordinates.push(y);
+    Serial.println("Point (" + String(x) + ", " + String(y) + ") exceeds grid of ");
+    Serial.print(String(GRID_SIZE_X) + "x" + String(GRID_SIZE_Y));
+    return;
   }
+
+  if (x < -1 || y < -1) {
+    Serial.println("Point (" + String(x) + ", " + String(y) + ") exceeds grid of ");
+    Serial.print(String(GRID_SIZE_X) + "x" + String(GRID_SIZE_Y));
+    return;
+  }
+
+  // if the point is valid --> add to queue
+  xCoordinates.push(x);
+  yCoordinates.push(y);
 }
