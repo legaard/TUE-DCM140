@@ -9,8 +9,8 @@
 #define SPEED_MEDIUM 500
 #define SPEED_SLOW 250
 
-#define LEFT 1
-#define RIGHT 2
+#define LEFT 'L'
+#define RIGHT 'R'
 
 #define GRID_SIZE_X 10
 #define GRID_SIZE_Y 10
@@ -128,10 +128,12 @@ void turn(int stepper, double degrees) {
   switch(stepper) {
     case LEFT:
       leftStepperDirection = degrees > 0;
+      leftStepSize = 1;
       leftStepsRemaining = (int) (oneDegree * absDegrees);
       break;
     case RIGHT:
       rightStepperDirection = degrees > 0;
+      rightStepSize = 1;
       rightStepsRemaining = (int) (oneDegree * absDegrees);
       break;
   }
@@ -164,8 +166,6 @@ void goToPoint(int x, int y) {
   // update distances from steppers to the new position
   leftCurrentDistance = newLeftDistance;
   rightCurrentDistance = newRightDistance;
-
-  Serial.println("Added point (" + String(x) + ", " + String(y) + ") to the list");
 }
 
 void addPoint(int x, int y) {
@@ -184,4 +184,6 @@ void addPoint(int x, int y) {
   // if the point is valid --> add to queue
   xCoordinates.push(x);
   yCoordinates.push(y);
+
+  Serial.println("Added point (" + String(x) + ", " + String(y) + ") to the list");
 }
