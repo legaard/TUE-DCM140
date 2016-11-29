@@ -94,7 +94,6 @@ void updateSteppers() {
       // deduct and update the steps taken
       leftStepsRemaining = leftStepsRemaining - wholeTempValue;
       leftTempValue = leftTempValue - wholeTempValue;
-      Serial.println("Left took " + String(wholeTempValue) + " steps. Remaining steps: " + String(leftStepsRemaining));
     } else {
       leftTempValue = leftTempValue + leftStepSize;
     }
@@ -110,7 +109,6 @@ void updateSteppers() {
       // deduct and update the steps taken
       rightStepsRemaining = rightStepsRemaining - wholeTempValue;
       rightTempValue = rightTempValue - wholeTempValue;
-      Serial.println("Right took " + String(wholeTempValue) + " steps. Remaining steps: " + String(rightStepsRemaining));
     } else {
       rightTempValue = rightTempValue + rightStepSize;
     }
