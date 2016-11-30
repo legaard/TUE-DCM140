@@ -12,10 +12,12 @@
 #define LEFT 'L'
 #define RIGHT 'R'
 
+// values to be defined before (first) startup
 #define GRID_SIZE_X 10
 #define GRID_SIZE_Y 10
-
-#define REEL_CIRCUMFERENCE 4;
+#define STARTING_COORDINATE_X 5
+#define STARTING_COORDINATE_Y 5
+#define REEL_CIRCUMFERENCE 11; // C = d * pi
 
 Stepper rightStepper(STEPS, 7, 5, 6, 4);
 Stepper leftStepper(STEPS, 11, 9, 10, 8);
@@ -26,8 +28,8 @@ boolean rightStepperDirection = true; // true = clockwise, false = counter clock
 // values related to the steppers
 const int rightStepperPosition[] = {GRID_SIZE_X + 1, -1};
 const int leftStepperPosition[] = {-1, -1};
-double leftCurrentDistance = 5;
-double rightCurrentDistance = 5;
+double leftCurrentDistance;
+double rightCurrentDistance;
 int leftStepsRemaining = 0;
 int rightStepsRemaining = 0;
 double leftStepSize;
@@ -57,6 +59,10 @@ void setup() {
   addPoint(10, 0);
   addPoint(10, 10);
   addPoint(5, 6);
+
+  // calculating the initial distance between steppers and current magnet point
+  leftCurrentDistance = getDistanceBetweenPoints(STARTING_COORDINATE_X, STARTING_COORDINATE_Y, leftStepperPosition[0], leftStepperPosition[1]);
+  rightCurrentDistance = getDistanceBetweenPoints(STARTING_COORDINATE_X, STARTING_COORDINATE_Y, rightStepperPosition[0], rightStepperPosition[1]);
 
   // setting the speed for the steppers
   setStepperSpeed(currentSpeed);
@@ -121,6 +127,7 @@ void setStepperSpeed(int newSpeed) {
   Serial.println("Speed set to: " + String(newSpeed));
 }
 
+// this method could be used for calibration (e.g. sending degrees via serial)
 void turn(int stepper, double degrees) {
   double oneDegree = ONE_REVOLUTION / 360.0;
   double absDegrees = abs(degrees);
@@ -142,8 +149,8 @@ void turn(int stepper, double degrees) {
 /* Point functions */
 void goToPoint(int x, int y) {
   // calculate the distance from the steppers' position to the new point
-  double newLeftDistance = sqrt(sq(x - leftStepperPosition[0]) + sq(y - leftStepperPosition[1]));
-  double newRightDistance = sqrt(sq(x - rightStepperPosition[0]) + sq(y - rightStepperPosition[1]));
+  double newLeftDistance = getDistanceBetweenPoints(x, y, leftStepperPosition[0], leftStepperPosition[1]);
+  double newRightDistance = getDistanceBetweenPoints(x, y, rightStepperPosition[0], rightStepperPosition[1]);
 
   // calculate the difference between current distance of the steppers and new distances
   double differenceLeft = newLeftDistance - leftCurrentDistance;
@@ -186,4 +193,9 @@ void addPoint(int x, int y) {
   yCoordinates.push(y);
 
   Serial.println("Added point (" + String(x) + ", " + String(y) + ") to the list");
+}
+
+double getDistanceBetweenPoints(int x1, int y1, int x2, int y2) {
+  int distance = sqrt(sq(x2 - x1) + sq(y2 - y1));
+  return distance;
 }
