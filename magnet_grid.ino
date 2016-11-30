@@ -15,8 +15,8 @@
 // values to be defined before (first) startup
 #define GRID_SIZE_X 10
 #define GRID_SIZE_Y 9
-#define STARTING_COORDINATE_X 7
-#define STARTING_COORDINATE_Y 9
+#define STARTING_COORDINATE_X 3
+#define STARTING_COORDINATE_Y 6
 #define REEL_CIRCUMFERENCE 11; // C = d * pi
 
 Stepper leftStepper(STEPS, 7, 5, 6, 4);
@@ -53,10 +53,10 @@ void setup() {
     pinMode(i, OUTPUT);
   }
 
-  // add points
-  addPoint(2, 1);
-  addPoint(0, 7);
-  addPoint(7, 9);
+  addPoint(4, 5);
+  addPoint(7, 2);
+  addPoint(7, 7);
+  addPoint(3, 6);
 
   // calculating the initial distance between steppers and current magnet point
   leftCurrentDistance = getDistanceBetweenPoints(STARTING_COORDINATE_X, STARTING_COORDINATE_Y, leftStepperPosition[0], leftStepperPosition[1]);
@@ -74,6 +74,26 @@ void loop() {
     int y = yCoordinates.dequeue();
     delay(delayBetweenPoints);
     goToPoint(x, y);
+  }
+
+  // handle serial input
+  if (Serial.available()) {
+    String input = Serial.readString();
+    char firstCharacter = input.charAt(0);
+
+    // new is being added
+    if (firstCharacter == '(') {
+      int x = input.substring(1, 2).toInt();
+      int y = input.substring(3, 4).toInt();
+      addPoint(x, y);
+    }
+
+    // wind the steppers
+    if (firstCharacter == 'R' || firstCharacter == 'L') {
+      char stepper = firstCharacter;
+      int degrees = input.substring(1).toInt();
+      wind(stepper, degrees);
+    }
   }
 
   // needs to be called in every loop – can NOT be omitted!
@@ -126,9 +146,16 @@ void setStepperSpeed(int newSpeed) {
 }
 
 // this method could be used for calibration (e.g. sending degrees via serial)
-void turn(int stepper, double degrees) {
+void wind(char stepper, double degrees) {
   double oneDegree = ONE_REVOLUTION / 360.0;
   double absDegrees = abs(degrees);
+
+  // clear all coordinates
+  while(!xCoordinates.isEmpty() || !yCoordinates.isEmpty()) {
+    xCoordinates.dequeue();
+    yCoordinates.dequeue();
+    Serial.println("Cleared the point queue");
+  }
 
   switch(stepper) {
     case LEFT:
