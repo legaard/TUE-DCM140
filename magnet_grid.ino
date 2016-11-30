@@ -5,7 +5,7 @@
 #define STEPS 32
 #define ONE_REVOLUTION 2048
 
-#define SPEED_FAST 1100
+#define SPEED_FAST 1000
 #define SPEED_MEDIUM 500
 #define SPEED_SLOW 250
 
@@ -14,13 +14,13 @@
 
 // values to be defined before (first) startup
 #define GRID_SIZE_X 10
-#define GRID_SIZE_Y 10
-#define STARTING_COORDINATE_X 5
-#define STARTING_COORDINATE_Y 5
+#define GRID_SIZE_Y 9
+#define STARTING_COORDINATE_X 7
+#define STARTING_COORDINATE_Y 9
 #define REEL_CIRCUMFERENCE 11; // C = d * pi
 
-Stepper rightStepper(STEPS, 7, 5, 6, 4);
-Stepper leftStepper(STEPS, 11, 9, 10, 8);
+Stepper leftStepper(STEPS, 7, 5, 6, 4);
+Stepper rightStepper(STEPS, 11, 9, 10, 8);
 
 boolean leftStepperDirection = true; // true = clockwise, false = counter clockwise
 boolean rightStepperDirection = true; // true = clockwise, false = counter clockwise
@@ -54,11 +54,9 @@ void setup() {
   }
 
   // add points
-  addPoint(5, 5);
   addPoint(2, 1);
-  addPoint(10, 0);
-  addPoint(10, 10);
-  addPoint(5, 6);
+  addPoint(0, 7);
+  addPoint(7, 9);
 
   // calculating the initial distance between steppers and current magnet point
   leftCurrentDistance = getDistanceBetweenPoints(STARTING_COORDINATE_X, STARTING_COORDINATE_Y, leftStepperPosition[0], leftStepperPosition[1]);
@@ -134,7 +132,7 @@ void turn(int stepper, double degrees) {
 
   switch(stepper) {
     case LEFT:
-      leftStepperDirection = degrees > 0;
+      leftStepperDirection = degrees < 0;
       leftStepSize = 1;
       leftStepsRemaining = (int) (oneDegree * absDegrees);
       break;
@@ -158,7 +156,7 @@ void goToPoint(int x, int y) {
 
   // change direction of the steppers based on the difference (< 0 --> reverse)
   leftStepperDirection = differenceLeft > 0;
-  rightStepperDirection = differenceRight > 0;
+  rightStepperDirection = differenceRight < 0;
 
   // calculate the number of steps to one 'unit' in the coordinate system
   double oneUnit = ONE_REVOLUTION / REEL_CIRCUMFERENCE;
