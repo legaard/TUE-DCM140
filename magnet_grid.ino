@@ -13,10 +13,10 @@
 #define RIGHT 'R'
 
 // values to be defined before (first) startup
-#define GRID_SIZE_X 10
-#define GRID_SIZE_Y 9
-#define STARTING_COORDINATE_X 3
-#define STARTING_COORDINATE_Y 6
+#define GRID_SIZE_X 9
+#define GRID_SIZE_Y 10
+#define STARTING_COORDINATE_X 7
+#define STARTING_COORDINATE_Y 2
 #define REEL_CIRCUMFERENCE 11; // C = d * pi
 
 Stepper leftStepper(STEPS, 7, 5, 6, 4);
@@ -26,8 +26,8 @@ boolean leftStepperDirection = true; // true = clockwise, false = counter clockw
 boolean rightStepperDirection = true; // true = clockwise, false = counter clockwise
 
 // values related to the steppers
-const int rightStepperPosition[] = {GRID_SIZE_X + 1, -1};
-const int leftStepperPosition[] = {-1, -1};
+const int rightStepperPosition[] = {GRID_SIZE_X, 0};
+const int leftStepperPosition[] = {0, 0};
 double leftCurrentDistance;
 double rightCurrentDistance;
 int leftStepsRemaining = 0;
@@ -36,7 +36,7 @@ double leftStepSize;
 double rightStepSize;
 
 int currentSpeed = SPEED_FAST;
-int delayBetweenPoints = 1000;
+int delayBetweenPoints = 0;
 boolean isReadyForNewPoint = true;
 
 QueueArray <int> xCoordinates;
@@ -53,18 +53,21 @@ void setup() {
     pinMode(i, OUTPUT);
   }
 
-  addPoint(4, 5);
-  addPoint(7, 2);
-  addPoint(7, 7);
-  addPoint(3, 6);
-
-  // calculating the initial distance between steppers and current magnet point
-  leftCurrentDistance = getDistanceBetweenPoints(STARTING_COORDINATE_X, STARTING_COORDINATE_Y, leftStepperPosition[0], leftStepperPosition[1]);
-  rightCurrentDistance = getDistanceBetweenPoints(STARTING_COORDINATE_X, STARTING_COORDINATE_Y, rightStepperPosition[0], rightStepperPosition[1]);
+  // calculating the initial distance between steppers and magnet point
+  leftCurrentDistance = getDistanceBetweenPoints(STARTING_COORDINATE_X, STARTING_COORDINATE_Y,
+                                        leftStepperPosition[0], leftStepperPosition[1]);
+  rightCurrentDistance = getDistanceBetweenPoints(STARTING_COORDINATE_X, STARTING_COORDINATE_Y,
+                                        rightStepperPosition[0], rightStepperPosition[1]);
 
   // setting the speed for the steppers
   setStepperSpeed(currentSpeed);
   Serial.println("Setup is done...");
+
+  // can be removed... just for testing purposes
+  addPoint(4, 5);
+  addPoint(7, 2);
+  addPoint(7, 7);
+  addPoint(3, 6);
 }
 
 void loop() {
@@ -81,18 +84,30 @@ void loop() {
     String input = Serial.readString();
     char firstCharacter = input.charAt(0);
 
-    // new is being added
+    // add a new point – e.g (2,7)
     if (firstCharacter == '(') {
       int x = input.substring(1, 2).toInt();
       int y = input.substring(3, 4).toInt();
       addPoint(x, y);
     }
 
-    // wind the steppers
+    // wind the steppers a certain number of degrees – e.g. is R180 or L-360
     if (firstCharacter == 'R' || firstCharacter == 'L') {
       char stepper = firstCharacter;
       int degrees = input.substring(1).toInt();
       wind(stepper, degrees);
+    }
+
+    // set the initial position of the magnet – e.g. S(5,5)
+    if (firstCharacter == 'S') {
+      reset();
+      int x = input.substring(2, 3).toInt();
+      int y = input.substring(4, 5).toInt();
+      leftCurrentDistance = getDistanceBetweenPoints(x, y,
+                                  leftStepperPosition[0], leftStepperPosition[1]);
+      rightCurrentDistance = getDistanceBetweenPoints(x, y,
+                                rightStepperPosition[0], rightStepperPosition[1]);
+      Serial.println("Updated the initial starting position");
     }
   }
 
@@ -145,17 +160,12 @@ void setStepperSpeed(int newSpeed) {
   Serial.println("Speed set to: " + String(newSpeed));
 }
 
-// this method could be used for calibration (e.g. sending degrees via serial)
 void wind(char stepper, double degrees) {
   double oneDegree = ONE_REVOLUTION / 360.0;
   double absDegrees = abs(degrees);
 
-  // clear all coordinates
-  while(!xCoordinates.isEmpty() || !yCoordinates.isEmpty()) {
-    xCoordinates.dequeue();
-    yCoordinates.dequeue();
-    Serial.println("Cleared the point queue");
-  }
+  // clear queue and set remaining steps to 0
+  reset();
 
   switch(stepper) {
     case LEFT:
@@ -174,8 +184,10 @@ void wind(char stepper, double degrees) {
 /* Point functions */
 void goToPoint(int x, int y) {
   // calculate the distance from the steppers' position to the new point
-  double newLeftDistance = getDistanceBetweenPoints(x, y, leftStepperPosition[0], leftStepperPosition[1]);
-  double newRightDistance = getDistanceBetweenPoints(x, y, rightStepperPosition[0], rightStepperPosition[1]);
+  double newLeftDistance = getDistanceBetweenPoints(x, y,
+                              leftStepperPosition[0], leftStepperPosition[1]);
+  double newRightDistance = getDistanceBetweenPoints(x, y,
+                              rightStepperPosition[0], rightStepperPosition[1]);
 
   // calculate the difference between current distance of the steppers and new distances
   double differenceLeft = newLeftDistance - leftCurrentDistance;
@@ -217,10 +229,24 @@ void addPoint(int x, int y) {
   xCoordinates.push(x);
   yCoordinates.push(y);
 
-  Serial.println("Added point (" + String(x) + ", " + String(y) + ") to the list");
+  Serial.println("Added point (" + String(x) + ", " + String(y) + ") to the queue");
 }
 
 double getDistanceBetweenPoints(int x1, int y1, int x2, int y2) {
   int distance = sqrt(sq(x2 - x1) + sq(y2 - y1));
   return distance;
+}
+
+/* Misc functions */
+void reset() {
+  // clear point queue
+  while(!xCoordinates.isEmpty() || !yCoordinates.isEmpty()) {
+    xCoordinates.dequeue();
+    yCoordinates.dequeue();
+  }
+  // set steps remaining for both steppers to 0
+  leftStepsRemaining = 0;
+  rightStepsRemaining = 0;
+
+  Serial.println("Cleared the point queue");
 }
