@@ -15,8 +15,8 @@
 // values to be defined before (first) startup
 #define GRID_SIZE_X 9
 #define GRID_SIZE_Y 10
-#define STARTING_COORDINATE_X 7
-#define STARTING_COORDINATE_Y 2
+#define STARTING_COORDINATE_X 4
+#define STARTING_COORDINATE_Y 6
 #define REEL_CIRCUMFERENCE 11; // C = d * pi
 
 Stepper leftStepper(STEPS, 7, 5, 6, 4);
@@ -43,12 +43,13 @@ QueueArray <int> xCoordinates;
 QueueArray <int> yCoordinates;
 
 void setup() {
-  // setup serial (for debugging)
+  // setup serial (for debugging) and Photon communication
   Serial.begin(9600);
+  Serial1.begin(115200);
   xCoordinates.setPrinter(Serial);
   yCoordinates.setPrinter(Serial);
 
-  // setup pins from 4 to 11
+  // setup pins from 4 to 11 for steppers
   for (int i = 4; i <= 11; i++) {
     pinMode(i, OUTPUT);
   }
@@ -62,12 +63,6 @@ void setup() {
   // setting the speed for the steppers
   setStepperSpeed(currentSpeed);
   Serial.println("Setup is done...");
-
-  // can be removed... just for testing purposes
-  addPoint(4, 5);
-  addPoint(7, 2);
-  addPoint(7, 7);
-  addPoint(3, 6);
 }
 
 void loop() {
@@ -80,26 +75,26 @@ void loop() {
   }
 
   // handle serial input
-  if (Serial.available()) {
-    String input = Serial.readString();
+  if (Serial1.available()) {
+    String input = Serial1.readString();
     char firstCharacter = input.charAt(0);
 
-    // add a new point – e.g (2,7)
-    if (firstCharacter == '(') {
-      int x = input.substring(1, 2).toInt();
-      int y = input.substring(3, 4).toInt();
+    // add a new point – e.g A(2,7)
+    if (firstCharacter == 'A') {
+      int x = input.substring(2, 3).toInt();
+      int y = input.substring(4, 5).toInt();
       addPoint(x, y);
     }
 
     // wind the steppers a certain number of degrees – e.g. is R180 or L-360
-    if (firstCharacter == 'R' || firstCharacter == 'L') {
+    if (firstCharacter == 'R'  || firstCharacter == 'L') {
       char stepper = firstCharacter;
       int degrees = input.substring(1).toInt();
       wind(stepper, degrees);
     }
 
     // set the initial position of the magnet – e.g. S(5,5)
-    if (firstCharacter == 'S') {
+    if (firstCharacter == 'S' ) {
       reset();
       int x = input.substring(2, 3).toInt();
       int y = input.substring(4, 5).toInt();
@@ -107,7 +102,7 @@ void loop() {
                                   leftStepperPosition[0], leftStepperPosition[1]);
       rightCurrentDistance = getDistanceBetweenPoints(x, y,
                                 rightStepperPosition[0], rightStepperPosition[1]);
-      Serial.println("Updated the initial starting position");
+      Serial.println("Updated the initial starting position!");
     }
   }
 
@@ -248,5 +243,5 @@ void reset() {
   leftStepsRemaining = 0;
   rightStepsRemaining = 0;
 
-  Serial.println("Cleared the point queue");
+  Serial.println("Cleared the point queue!");
 }
