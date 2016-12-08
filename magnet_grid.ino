@@ -15,8 +15,8 @@
 // values to be defined before (first) startup
 #define GRID_SIZE_X 9
 #define GRID_SIZE_Y 10
-#define STARTING_COORDINATE_X 4
-#define STARTING_COORDINATE_Y 6
+#define STARTING_COORDINATE_X 6
+#define STARTING_COORDINATE_Y 2
 #define REEL_CIRCUMFERENCE 11; // C = d * pi
 
 Stepper leftStepper(STEPS, 7, 5, 6, 4);
@@ -28,6 +28,9 @@ boolean rightStepperDirection = true; // true = clockwise, false = counter clock
 // values related to the steppers
 const int rightStepperPosition[] = {GRID_SIZE_X, 0};
 const int leftStepperPosition[] = {0, 0};
+
+int currentPosition[] = {STARTING_COORDINATE_X, STARTING_COORDINATE_Y};
+
 double leftCurrentDistance;
 double rightCurrentDistance;
 int leftStepsRemaining = 0;
@@ -36,7 +39,7 @@ double leftStepSize;
 double rightStepSize;
 
 int currentSpeed = SPEED_FAST;
-int delayBetweenPoints = 0;
+int delayBetweenPoints = 1000;
 boolean isReadyForNewPoint = true;
 
 QueueArray <int> xCoordinates;
@@ -78,12 +81,78 @@ void loop() {
   if (Serial1.available()) {
     String input = Serial1.readString();
     char firstCharacter = input.charAt(0);
+    char secondCharacter = input.charAt(1);
 
     // add a new point – e.g A(2,7)
     if (firstCharacter == 'A') {
-      int x = input.substring(2, 3).toInt();
-      int y = input.substring(4, 5).toInt();
+      int x, y;
+      int commaIndex = input.indexOf(',');
+
+      // find x
+      for(int i = commaIndex; i > 0; i--) {
+        if (input.charAt(i) == '('){
+          x = input.substring(i + 1, commaIndex).toInt();
+        }
+      }
+
+      // finc y
+      for(int i = commaIndex; i < input.length(); i++) {
+        if (input.charAt(i) == ')'){
+          y = input.substring(commaIndex + 1, i).toInt();
+        }
+      }
+
       addPoint(x, y);
+    }
+
+    // one vector must be added to current position
+    if (firstCharacter == 'V' && secondCharacter == '(') {
+      int xVector, yVector;
+      int commaIndex = input.indexOf(',');
+
+      // find xVector
+      for(int i = commaIndex; i > 0; i--) {
+        if (input.charAt(i) == '('){
+          xVector = input.substring(i + 1, commaIndex).toInt();
+        }
+      }
+
+      // find yVector
+      for(int i = commaIndex; i < input.length(); i++) {
+        if (input.charAt(i) == ')'){
+          yVector = input.substring(commaIndex + 1, i).toInt();
+        }
+      }
+
+      addPoint(currentPosition[0], currentPosition[1], xVector, yVector);
+    }
+
+    // multiple vectors must be applied
+    if (firstCharacter == 'V' && secondCharacter == '[') {
+
+      for(int i = 0; i < input.length(); i++) {
+        if(input.charAt(i) == ',') {
+          int xVector, yVector;
+          // find x
+          for(int j = i; j > 0; j--) {
+            if (input.charAt(j) == '(') {
+              xVector = input.substring(j + 1, i).toInt();
+              break;
+            }
+          }
+
+          //finc y
+          for(int j = i; j < input.length(); j++) {
+            if (input.charAt(j) == ')') {
+              yVector = input.substring(i + 1, j).toInt();
+              break;
+            }
+          }
+
+          addPoint(currentPosition[0], currentPosition[1], xVector, yVector);
+        }
+      }
+
     }
 
     // wind the steppers a certain number of degrees – e.g. is R180 or L-360
@@ -91,13 +160,32 @@ void loop() {
       char stepper = firstCharacter;
       int degrees = input.substring(1).toInt();
       wind(stepper, degrees);
+      setCurrentPosition(-1, -1);
     }
 
     // set the initial position of the magnet – e.g. S(5,5)
     if (firstCharacter == 'S' ) {
+      int x, y;
+      int commaIndex = input.indexOf(',');
+
       reset();
-      int x = input.substring(2, 3).toInt();
-      int y = input.substring(4, 5).toInt();
+
+      // find x
+      for(int i = commaIndex; i > 0; i--) {
+        if (input.charAt(i) == '('){
+          x = input.substring(i + 1, commaIndex).toInt();
+        }
+      }
+
+      // find y
+      for(int i = commaIndex; i < input.length(); i++) {
+        if (input.charAt(i) == ')'){
+          y = input.substring(commaIndex + 1, i).toInt();
+        }
+      }
+
+      setCurrentPosition(x, y);
+
       leftCurrentDistance = getDistanceBetweenPoints(x, y,
                                   leftStepperPosition[0], leftStepperPosition[1]);
       rightCurrentDistance = getDistanceBetweenPoints(x, y,
@@ -208,6 +296,12 @@ void goToPoint(int x, int y) {
 }
 
 void addPoint(int x, int y) {
+
+  if (currentPosition[0] == -1 || currentPosition[1] == -1) {
+    Serial.println("Adjustments have been made. A new starting postion must be supplied.");
+    return;
+  }
+
   if (x > GRID_SIZE_X || y > GRID_SIZE_Y) {
     Serial.println("Point (" + String(x) + ", " + String(y) + ") exceeds grid of ");
     Serial.print(String(GRID_SIZE_X) + "x" + String(GRID_SIZE_Y));
@@ -220,11 +314,28 @@ void addPoint(int x, int y) {
     return;
   }
 
-  // if the point is valid --> add to queue
+  // if the point is valid --> add to queue and update current position
   xCoordinates.push(x);
   yCoordinates.push(y);
+  setCurrentPosition(x, y);
 
   Serial.println("Added point (" + String(x) + ", " + String(y) + ") to the queue");
+}
+
+void addPoint(int xCoordinate, int yCoordinate, int xVector, int yVector) {
+  int goToXCoordinate = xCoordinate + xVector;
+  int goToYCoordinate = yCoordinate + yVector;
+  int returnXCoordinate = GRID_SIZE_X / 2;
+  int returnYCoordinate = GRID_SIZE_Y / 2;
+
+  if (goToXCoordinate < 0 || goToXCoordinate > GRID_SIZE_X ||
+      goToYCoordinate < 0 || goToYCoordinate > GRID_SIZE_Y) {
+    Serial.println("Vector makes point exeed the grid – point not include in sequence.");
+    return;
+  }
+
+  addPoint(goToXCoordinate, goToYCoordinate);
+  addPoint(returnXCoordinate, returnYCoordinate);
 }
 
 double getDistanceBetweenPoints(int x1, int y1, int x2, int y2) {
@@ -243,5 +354,12 @@ void reset() {
   leftStepsRemaining = 0;
   rightStepsRemaining = 0;
 
+  setCurrentPosition(-1, -1);
+
   Serial.println("Cleared the point queue!");
+}
+
+void setCurrentPosition(int x, int y) {
+  currentPosition[0] = x;
+  currentPosition[1] = y;
 }
