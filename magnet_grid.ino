@@ -13,7 +13,7 @@
 #define RIGHT 'R'
 
 // values to be defined before (first) startup
-#define GRID_SIZE_X 9
+#define GRID_SIZE_X 10
 #define GRID_SIZE_Y 10
 #define STARTING_COORDINATE_X 6
 #define STARTING_COORDINATE_Y 2
@@ -323,10 +323,27 @@ void addPoint(int x, int y) {
 }
 
 void addPoint(int xCoordinate, int yCoordinate, int xVector, int yVector) {
-  int goToXCoordinate = xCoordinate + xVector;
+  int xMiddlePoint = GRID_SIZE_X/2;
+  int yMiddlePoint = GRID_SIZE_Y/2;
+
+  if (xVector == 0 && yVector == 0) {
+    return;
+  }
+
+  if (xVector > xMiddlePoint) {
+    xVector = xMiddlePoint;
+  } else if (xVector < -xMiddlePoint) {
+    xVector = -xMiddlePoint;
+  }
+
+  if (yVector > yMiddlePoint) {
+    yVector = yMiddlePoint;
+  } else if (yVector < -yMiddlePoint) {
+    xVector -yMiddlePoint;
+  }
+
   int goToYCoordinate = yCoordinate + yVector;
-  int returnXCoordinate = GRID_SIZE_X / 2;
-  int returnYCoordinate = GRID_SIZE_Y / 2;
+  int goToXCoordinate = xCoordinate + xVector;
 
   if (goToXCoordinate < 0 || goToXCoordinate > GRID_SIZE_X ||
       goToYCoordinate < 0 || goToYCoordinate > GRID_SIZE_Y) {
@@ -335,9 +352,10 @@ void addPoint(int xCoordinate, int yCoordinate, int xVector, int yVector) {
   }
 
   addPoint(goToXCoordinate, goToYCoordinate);
-  addPoint(returnXCoordinate, returnYCoordinate);
+  addPoint(xMiddlePoint, yMiddlePoint);
 }
 
+//TODO: make sure everything gets calculated correctly
 double getDistanceBetweenPoints(int x1, int y1, int x2, int y2) {
   int distance = sqrt(sq(x2 - x1) + sq(y2 - y1));
   return distance;
