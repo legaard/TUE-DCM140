@@ -1,5 +1,6 @@
 #include <Stepper.h>
 #include <QueueArray.h>
+#include <Adafruit_NeoPixel.h>
 
 /********** Variables and constants **********/
 #define STEPS 32
@@ -15,9 +16,12 @@
 // values to be defined before (first) startup
 #define GRID_SIZE_X 10
 #define GRID_SIZE_Y 10
-#define STARTING_COORDINATE_X 6
-#define STARTING_COORDINATE_Y 2
-#define REEL_CIRCUMFERENCE 11; // C = d * pi
+#define STARTING_COORDINATE_X 5
+#define STARTING_COORDINATE_Y 5
+#define REEL_CIRCUMFERENCE 11 // C = d * pi
+
+#define NUMBER_OF_PIXELS 8
+#define BUTTON_PIN 12
 
 Stepper leftStepper(STEPS, 7, 5, 6, 4);
 Stepper rightStepper(STEPS, 11, 9, 10, 8);
@@ -39,11 +43,16 @@ double leftStepSize;
 double rightStepSize;
 
 int currentSpeed = SPEED_FAST;
-int delayBetweenPoints = 1000;
+int delayBetweenPoints = 0;
 boolean isReadyForNewPoint = true;
 
 QueueArray <int> xCoordinates;
 QueueArray <int> yCoordinates;
+
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUMBER_OF_PIXELS, 13, NEO_GBR + NEO_KHZ800);
+unsigned long currentMillis;
+int sessionLength;
+int lightIntensity;
 
 void setup() {
   // setup serial (for debugging) and Photon communication
@@ -57,6 +66,9 @@ void setup() {
     pinMode(i, OUTPUT);
   }
 
+  // setup of the button pin
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
   // calculating the initial distance between steppers and magnet point
   leftCurrentDistance = getDistanceBetweenPoints(STARTING_COORDINATE_X, STARTING_COORDINATE_Y,
                                         leftStepperPosition[0], leftStepperPosition[1]);
@@ -65,10 +77,62 @@ void setup() {
 
   // setting the speed for the steppers
   setStepperSpeed(currentSpeed);
+
+  // initialize and turn strip 'off'
+  strip.begin();
+  strip.show();
+
   Serial.println("Setup is done...");
 }
 
 void loop() {
+  /********************* NEOPIXEL AND BUTTON RELATED CODE *********************/
+  unsigned long startMillis = millis();
+  unsigned long endMillis = 0;
+  boolean hasButtonBeenPressed = false;
+
+  // as longs as the button pin is not connected to the ground
+  while(digitalRead(BUTTON_PIN) == LOW && sessionLength == 0) {
+    // if the button is held down for more than 5 seconds --> break
+    if (millis() - startMillis >= 5000) break;
+
+    lightIntensity = (int) ((millis() - startMillis) * (100.0 / 5000.0));
+    setStripColor(lightIntensity, lightIntensity, lightIntensity);
+    hasButtonBeenPressed = true;
+    delay(100);
+  }
+
+  endMillis = millis() - startMillis;
+
+  if (endMillis <= 400 && hasButtonBeenPressed) {
+    currentMillis = millis();
+    sessionLength = 300;
+    lightIntensity = 100;
+    Serial1.write("S300");
+    setStripColor(lightIntensity, lightIntensity, lightIntensity);
+  } else if (endMillis > 400 && hasButtonBeenPressed) {
+    currentMillis = millis();
+    sessionLength = (int) ((endMillis / 1000) * 60);
+    Serial1.print("S" + String(sessionLength));
+  }
+
+  if(sessionLength > 0 && digitalRead(BUTTON_PIN) == LOW) {
+    setStripColor(0, 0, 0);
+    sessionLength = 0;
+    Serial1.write("E");
+    delay(500);
+  }
+
+  if (sessionLength > 0) {
+    if (millis() - currentMillis > 1000) {
+      sessionLength--;
+      currentMillis = millis();
+      lightIntensity = (double) sessionLength / 3.0;
+      setStripColor(lightIntensity, lightIntensity, lightIntensity);
+    }
+  }
+
+  /*************************** STEPPER RELATED CODE ***************************/
   // go to new point once last point has been reached
   if (isReadyForNewPoint && !xCoordinates.isEmpty() && !yCoordinates.isEmpty()) {
     int x = xCoordinates.dequeue();
@@ -380,4 +444,11 @@ void reset() {
 void setCurrentPosition(int x, int y) {
   currentPosition[0] = x;
   currentPosition[1] = y;
+}
+
+void setStripColor(int r, int g, int b) {
+  for(int i = 0; i < NUMBER_OF_PIXELS; i++) {
+    strip.setPixelColor(i, r, g, b);
+  }
+  strip.show();
 }
